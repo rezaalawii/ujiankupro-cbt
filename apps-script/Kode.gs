@@ -384,6 +384,7 @@ function questionList_(session) {
     const dibuat=q.Diperbarui||q.Dibuat||'';
     q.Dipakai=used[q.ID]||0;
     q.NamaPembuat=userNames[q.Pemilik]||'';
+    q.Pembuat=q.Pemilik||'';
     q.DiperbaruiPada=dibuat;
     const mapel=String(q.Mapel||'').trim(),bloom=String(q.Bloom||'').trim(),kes=String(q.Kesukaran||'').trim(),tk=String(q.Tingkat||'').trim();
     if(mapel)facet.mapel[mapel]=(facet.mapel[mapel]||0)+1;
@@ -401,7 +402,18 @@ function buatDate_(value) { const date=value?new Date(value):null;return date&&!
 function saveQuestion_(session,x) { requireRole_(session,['ADMIN','GURU']);if(!String(x.Pertanyaan||'').trim())return fail_('VALIDATION','Teks soal wajib diisi.');const prior=x.ID?byId_('Soal',x.ID):null;if(prior&&session.me.role!=='ADMIN'&&prior.Pemilik!==session.me.id)return fail_('AUTH','Tidak berhak mengubah soal ini.');const q=Object.assign({},prior||{},x,{ID:x.ID||uid_(),Pemilik:session.me.role==='ADMIN'?(x.Pemilik||prior&&prior.Pemilik||session.me.id):session.me.id,Status:x.Status||'Aktif',Bobot:Number(x.Bobot)||1,Dibuat:prior&&prior.Dibuat||x.Dibuat||iso_()});upsert_('Soal',q,'ID');return ok_({id:q.ID}); }
 function deleteQuestions_(session,ids) { ids.forEach(function(id){const q=byId_('Soal',id);if(q&&(session.me.role==='ADMIN'||q.Pemilik===session.me.id)){q.Status='Arsip';upsert_('Soal',q,'ID');}});return ok_({}); }
 function packageList_(session) {
-  const rows=rows_('Paket').filter(function(p){return session.me.role==='ADMIN'||p.Pemilik===session.me.id;}).map(function(p){const ts=rows_('Token').filter(function(t){return t.PaketID===p.ID;});const se=rows_('Sesi').filter(function(s){return s.PaketID===p.ID;});const owner=byId_('Users',p.Pemilik);return Object.assign({},p,{StatusTampil:displayStatus_(p),JumlahPool:questionsForPackage_(p).length,Token:{total:ts.length,aktif:ts.filter(function(t){return t.Status==='AKTIF';}).length,terpakai:ts.filter(function(t){return t.Status==='TERPAKAI';}).length},Sesi:{total:se.length,selesai:se.filter(function(s){return s.Status==='SELESAI';}).length,berjalan:se.filter(function(s){return s.Status==='BERJALAN';}).length},RataRata:se.length?se.reduce(function(a,s){return a+(Number(s.Skor)||0);},0)/se.length:null,KKMEfektif:Number(p.KKM)||75,NamaPemilik:owner&&owner.Nama||''});});return ok_({rows:rows,total:rows.length,kpi:{total:rows.length,aktif:rows.filter(function(p){return p.StatusTampil==='Berlangsung';}).length,terjadwal:rows.filter(function(p){return p.StatusTampil==='Terjadwal';}).length,draf:rows.filter(function(p){return p.StatusTampil==='Draf';}).length,tokenAktif:rows.reduce(function(a,p){return a+p.Token.aktif;},0),soalTerdistribusi:rows.reduce(function(a,p){return a+p.JumlahPool;},0),sesiBerjalan:rows.reduce(function(a,p){return a+p.Sesi.berjalan;},0)}});
+  const kelasGuru=session.me.role==='ADMIN'?rows_('Kelas').map(function(k){return String(k.NamaKelas||k.Nama||'');}).filter(Boolean):(session.me.kelasDiampu||[]);
+  const mapelGuru=session.me.role==='ADMIN'?csv_(settings_().DAFTAR_MAPEL):(session.me.mapel||[]);
+  const tokenRows=rows_('Token'),sessionRows=rows_('Sesi'),questionRows=rows_('Soal'),users=rows_('Users'),owners={};
+  users.forEach(function(u){owners[u.ID]=u.Nama||u.Username||'';});
+  const poolQuestion={};questionRows.forEach(function(q){if(q.Status!=='Arsip')poolQuestion[q.ID]=q;});
+  const packages=rows_('Paket').filter(function(p){return session.me.role==='ADMIN'||p.Pemilik===session.me.id;});
+  const rows=packages.map(function(p){
+    const ts=tokenRows.filter(function(t){return t.PaketID===p.ID;}),se=sessionRows.filter(function(s){return s.PaketID===p.ID;}),ids=csv_(p.SoalIDs);
+    const jumlahPool=ids.length?ids.filter(function(id){return !!poolQuestion[id];}).length:questionRows.filter(function(q){return q.Status!=='Arsip'&&q.Mapel===p.Mapel&&(!p.Tingkat||q.Tingkat===p.Tingkat);}).slice(0,Number(p.JumlahSoal)||20).length;
+    return Object.assign({},p,{DaftarSoal:p.SoalIDs||'',StatusTampil:displayStatus_(p),JumlahPool:jumlahPool,Token:{total:ts.length,aktif:ts.filter(function(t){return t.Status==='AKTIF';}).length,terpakai:ts.filter(function(t){return t.Status==='TERPAKAI';}).length},Sesi:{total:se.length,selesai:se.filter(function(s){return s.Status==='SELESAI';}).length,berjalan:se.filter(function(s){return s.Status==='BERJALAN';}).length},RataRata:se.length?se.reduce(function(a,s){return a+(Number(s.Skor)||0);},0)/se.length:null,KKMEfektif:Number(p.KKM)||75,NamaPemilik:owners[p.Pemilik]||''});
+  });
+  return ok_({rows:rows,total:rows.length,mapelGuru:mapelGuru,kelasGuru:kelasGuru,kpi:{total:rows.length,aktif:rows.filter(function(p){return p.StatusTampil==='Berlangsung';}).length,terjadwal:rows.filter(function(p){return p.StatusTampil==='Terjadwal';}).length,draf:rows.filter(function(p){return p.StatusTampil==='Draf';}).length,tokenAktif:rows.reduce(function(a,p){return a+p.Token.aktif;},0),soalTerdistribusi:rows.reduce(function(a,p){return a+p.JumlahPool;},0),sesiBerjalan:rows.reduce(function(a,p){return a+p.Sesi.berjalan;},0)}});
 }
 function savePackage_(session,x,gen) {
   requireRole_(session,['ADMIN','GURU']);if(!String(x.Nama||'').trim())return fail_('VALIDATION','Nama paket wajib diisi.');

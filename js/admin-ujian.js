@@ -307,7 +307,10 @@
   function muatPaket(paksa) { return A.swr('paket', function () { return A.apiQ('paket.list', {}); }, { maxAge: paksa ? 0 : 20000, force: !!paksa }); }
   ADM.muatPaket = muatPaket;
   ADM.reg('paket', function (v, id) {
-    if (id) return penyusunPaket(v, id);
+    if (id) return penyusunPaket(v, id).catch(function (err) {
+      console.error('Gagal membuka penyusun paket:', err);
+      v.innerHTML = '<div class="card pad empty">Halaman paket gagal dibuka. Muat ulang halaman; jika masih terjadi, buka menu Paket Ujian kembali.</div>';
+    });
     const guru = ADM.isGuru();
     v.innerHTML = ADM.judul('Paket Ujian & Penjadwalan', guru ? 'Susun paket dari bank soal, atur jadwal & aturan, lalu terbitkan dan bagikan token.' : 'Pantau seluruh paket ujian dari semua guru. Paket dibuat oleh guru pengampu.',
       guru ? '<a class="btn primary" href="#/paket/baru">' + ic('plus', 'sm') + 'Buat Paket Ujian</a>' : '', 'Utama › <b>Paket Ujian</b>') +
@@ -378,7 +381,7 @@
     if (salin) { delete p.ID; p.Nama = p.Nama + ' (salinan)'; p.Status = 'Draf'; p.Sesi = null; }
     const terkunci = !!(p.ID && p.Sesi && p.Sesi.total > 0);
     const pilih = {}; String(p.DaftarSoal || '').split(',').filter(Boolean).forEach(function (x) { pilih[x] = 1; });
-    const soalMilik = ds.rows.filter(function (r) { return r.Status !== 'Arsip' && r.Pembuat === ADM.me.id; });
+    const soalMilik = ds.rows.filter(function (r) { return r.Status !== 'Arsip' && (r.Pembuat || r.Pemilik) === ADM.me.id; });
     const fs = { mapel: p.Mapel, tingkat: '', bloom: '', q: '', hanyaPilih: false };
     const kelasSel = String(p.KelasSasaran || '').split(/\s*,\s*/).filter(Boolean);
     const mapelL = (dp.mapelGuru || []).concat(p.Mapel ? [p.Mapel] : []).filter(function (x, i, a) { return x && a.indexOf(x) === i; });
@@ -389,7 +392,7 @@
       '<div class="field full"><label>Nama paket *</label><input class="inp" id="pNama" value="' + esc(p.Nama) + '" placeholder="mis. Penilaian Tengah Semester Ganjil — Fisika XI"></div>' +
       '<div class="field"><label>Mata pelajaran *</label><select class="sel" id="pMapel">' + mapelL.map(function (m) { return '<option' + (m === p.Mapel ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') + '</select></div>' +
       '<div class="field"><label>Tingkat</label><select class="sel" id="pTingkat"><option value="">—</option>' + ds.tingkat.map(function (t) { return '<option' + (t === p.Tingkat ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select></div>' +
-      '<div class="field full"><label>Kelas sasaran *</label><div class="chips" id="pKelas">' + (dp.kelasGuru.length ? dp.kelasGuru.map(function (k) { return '<button type="button" class="chip ' + (kelasSel.indexOf(k) > -1 ? 'on' : '') + '" data-v="' + esc(k) + '">' + esc(k) + '</button>'; }).join('') : '<span class="small muted">Anda belum ditugaskan ke kelas mana pun — minta admin mengisi kelas diampu pada akun Anda.</span>') + '</div><div class="hint">Token dibuat otomatis untuk siswa aktif di kelas terpilih.</div></div>' +
+      '<div class="field full"><label>Kelas sasaran *</label><div class="chips" id="pKelas">' + ((dp.kelasGuru || []).length ? dp.kelasGuru.map(function (k) { return '<button type="button" class="chip ' + (kelasSel.indexOf(k) > -1 ? 'on' : '') + '" data-v="' + esc(k) + '">' + esc(k) + '</button>'; }).join('') : '<span class="small muted">Anda belum ditugaskan ke kelas mana pun — minta admin mengisi kelas diampu pada akun Anda.</span>') + '</div><div class="hint">Token dibuat otomatis untuk siswa aktif di kelas terpilih.</div></div>' +
       '<div class="field full"><label>Catatan untuk siswa (opsional)</label><input class="inp" id="pCat" value="' + esc(p.Catatan) + '" placeholder="mis. Siapkan kalkulator ilmiah"></div></div></div>' +
       '<div class="card"><div class="card-h"><div><h3><span class="badge blue">2</span> Pilih Soal dari Bank Soal</h3><p id="pbInfo"></p></div><a class="btn sm ghost" href="#/bank-soal/baru" target="_blank" rel="noopener">' + ic('plus', 'sm') + 'Soal baru</a></div>' +
       '<div class="card-b stack-sm"><div class="row wrap"><div class="search grow" style="min-width:200px">' + ic('search') + '<input class="inp sm" id="sQ" placeholder="Cari soal / topik…"></div><select class="sel" id="sMapel" style="width:auto"></select><select class="sel" id="sTingkat" style="width:auto"><option value="">Semua tingkat</option>' + ds.tingkat.map(function (t) { return '<option>' + esc(t) + '</option>'; }).join('') + '</select>' +

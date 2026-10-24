@@ -481,6 +481,80 @@ function restoreBackup_(session,d){requireRole_(session,['ADMIN']);if(String(d.k
 function randomPassword_(){return 'CbT-'+Utilities.getUuid().replace(/-/g,'').slice(0,8)+'7';}
 function randomPin_(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<6;i++)s+=chars[Math.floor(Math.random()*chars.length)];return s;}
 function shortCode_(){return Utilities.getUuid().replace(/-/g,'').slice(0,8).toUpperCase();}
+
+/**
+ * Tambahkan data contoh CBT yang aman dan idempoten untuk demonstrasi.
+ * Paket dibuat sebagai Draf dan pengumuman nonaktif; tidak ada token ujian
+ * yang diterbitkan, sehingga siswa tidak dapat memulai ujian contoh ini.
+ */
+function seedDemoData(){
+  ensure_();
+  const kelasNama=['[DEMO] XI RPL 1','[DEMO] XI TKJ 1'];
+  const hasil={kelas:0,guru:0,siswa:0,soal:0,paket:0,pengumuman:0};
+  let sandiGuru='';
+
+  let guru=rows_('Users').filter(function(u){return u.Username==='guru.demo.cbtsmk';})[0];
+  if(!guru){
+    sandiGuru=randomPassword_();
+    const salt=Utilities.getUuid();
+    guru={ID:uid_(),Nama:'Guru Demo CBT',Username:'guru.demo.cbtsmk',Role:'GURU',Salt:salt,PasswordHash:hash_(sandiGuru,salt),WajibGanti:'YA',Aktif:'YA',Mapel:'Matematika',KelasDiampu:kelasNama.join(','),Dibuat:iso_(),Email:'',NoWA:'',NIP:'DEMO'};
+    upsert_('Users',guru,'ID');hasil.guru=1;
+  }
+
+  kelasNama.forEach(function(n,i){
+    let k=rows_('Kelas').filter(function(x){return String(x.NamaKelas||x.Nama||'')===n;})[0];
+    if(!k){k={ID:uid_(),Nama:n,NamaKelas:n,Tingkat:'XI',Wali:guru.ID,WaliKelas:guru.ID,Kapasitas:36,Ruang:'Lab CBT Demo '+(i+1),Aktif:'YA',Dibuat:iso_()};upsert_('Kelas',k,'ID');hasil.kelas++;}
+  });
+
+  const siswaContoh=[
+    {Nama:'Alya Putri Demo',NIS:'DEMO-XI-001',Kelas:kelasNama[0],JenisKelamin:'P'},
+    {Nama:'Bima Pratama Demo',NIS:'DEMO-XI-002',Kelas:kelasNama[0],JenisKelamin:'L'},
+    {Nama:'Citra Lestari Demo',NIS:'DEMO-XI-003',Kelas:kelasNama[0],JenisKelamin:'P'},
+    {Nama:'Daffa Ramadhan Demo',NIS:'DEMO-XI-004',Kelas:kelasNama[1],JenisKelamin:'L'},
+    {Nama:'Nadia Safitri Demo',NIS:'DEMO-XI-005',Kelas:kelasNama[1],JenisKelamin:'P'},
+    {Nama:'Rafi Akbar Demo',NIS:'DEMO-XI-006',Kelas:kelasNama[1],JenisKelamin:'L'}
+  ];
+  siswaContoh.forEach(function(s){
+    if(!rows_('Siswa').some(function(x){return String(x.NIS)===s.NIS;})){
+      s.ID=uid_();s.NISN='';s.StatusAktif='YA';s.Dibuat=iso_();s.NoWA='';s.Email='';s.NamaWali='';s.NoWAWali='';
+      upsert_('Siswa',s,'ID');hasil.siswa++;
+    }
+  });
+
+  const soalContoh=[
+    {Mapel:'Matematika',Topik:'Persamaan Linear',Pertanyaan:'[DEMO] Jika 3x + 2 = 14, nilai x adalah …',A:'2',B:'3',C:'4',D:'5',E:'6',Kunci:'C',Pembahasan:'3x = 12, sehingga x = 4.'},
+    {Mapel:'Matematika',Topik:'Pecahan',Pertanyaan:'[DEMO] Hasil dari 1/2 + 1/4 adalah …',A:'1/4',B:'3/4',C:'1',D:'1 1/4',E:'2/3',Kunci:'B',Pembahasan:'Samakan penyebut: 2/4 + 1/4 = 3/4.'},
+    {Mapel:'Matematika',Topik:'Persentase',Pertanyaan:'[DEMO] 25% dari 200 adalah …',A:'25',B:'40',C:'45',D:'50',E:'75',Kunci:'D',Pembahasan:'0,25 × 200 = 50.'},
+    {Mapel:'Matematika',Topik:'Geometri',Pertanyaan:'[DEMO] Persegi panjang berukuran 8 cm × 5 cm. Luasnya adalah …',A:'13 cm²',B:'26 cm²',C:'35 cm²',D:'40 cm²',E:'45 cm²',Kunci:'D',Pembahasan:'Luas = panjang × lebar = 8 × 5 = 40 cm².'},
+    {Mapel:'Matematika',Topik:'Bilangan Berpangkat',Pertanyaan:'[DEMO] Nilai 2³ adalah …',A:'6',B:'8',C:'9',D:'12',E:'16',Kunci:'B',Pembahasan:'2³ = 2 × 2 × 2 = 8.'}
+  ];
+  const soalIds=[];
+  soalContoh.forEach(function(q){
+    let old=rows_('Soal').filter(function(x){return x.Pertanyaan===q.Pertanyaan;})[0];
+    if(!old){q.ID=uid_();q.Tingkat='XI';q.KD='';q.Bloom='C2';q.Tipe='PG';q.URLGambar='';q.Bobot=1;q.Kesukaran='Mudah';q.Status='Aktif';q.Pemilik=guru.ID;q.Dibuat=iso_();upsert_('Soal',q,'ID');old=q;hasil.soal++;}
+    soalIds.push(old.ID);
+  });
+
+  const namaPaket='[DEMO] Latihan Matematika XI';
+  let paket=rows_('Paket').filter(function(p){return p.Nama===namaPaket;})[0];
+  if(!paket){
+    const mulai=Date.now()+86400000;
+    paket={ID:uid_(),Nama:namaPaket,Kode:'DEMO-'+shortCode_().slice(0,4),Mapel:'Matematika',Tingkat:'XI',KelasSasaran:kelasNama[0],Pemilik:guru.ID,SoalIDs:soalIds.join(','),JumlahSoal:soalIds.length,WaktuBuka:iso_(mulai),WaktuTutup:iso_(mulai+7200000),Durasi:30,KKM:75,Toleransi:0,Status:'Draf',AcakSoal:'TIDAK',AcakOpsi:'TIDAK',AntiCheat:'TIDAK',SingleDevice:'YA',MaksPelanggaran:5,TampilNilai:'YA',IzinPembahasan:'YA',Dibuat:iso_()};
+    upsert_('Paket',paket,'ID');hasil.paket++;
+  }
+
+  const judulInfo='[DEMO] Informasi latihan CBT';
+  if(!rows_('Info').some(function(i){return i.Judul===judulInfo;})){
+    upsert_('Info',{ID:uid_(),Jenis:'pengumuman',Judul:judulInfo,Isi:'Ini data simulasi. Paket latihan masih berstatus Draf dan tidak memiliki token peserta.',Deskripsi:'Data dummy untuk latihan pengelolaan CBT.',URL:'',Mapel:'Matematika',Kelas:kelasNama.join(','),Sasaran:'guru',PaketID:paket.ID,Mulai:'',Selesai:'',Aktif:'TIDAK',Oleh:guru.ID,Dibuat:iso_(),Diperbarui:iso_()},'ID');
+    hasil.pengumuman++;
+  }
+
+  Logger.log(JSON.stringify(hasil));
+  if(sandiGuru){Logger.log('AKUN GURU DEMO');Logger.log('Username: guru.demo.cbtsmk');Logger.log('Kata sandi awal: '+sandiGuru);}
+  else Logger.log('Akun guru demo sudah ada; sandi yang lama tidak ditampilkan kembali.');
+  Logger.log('Data simulasi aman: paket Draf, pengumuman nonaktif, tanpa PIN/token.');
+  return hasil;
+}
 function ok_(data){return {success:true,data:data||{},message:''};}
 function fail_(code,message){return {success:false,code:code,message:message};}
 function json_(obj){return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);}

@@ -102,7 +102,10 @@
     const admin = ADM.isAdmin();
     el.innerHTML = '<div class="card"><div class="card-h"><div><h3>Kelas / Rombongan Belajar</h3><p>' + (admin ? 'Nama kelas dipakai sebagai sasaran paket ujian dan penugasan guru.' : 'Kelas yang Anda ampu (diatur admin).') + '</p></div>' + (admin ? '<button class="btn primary" id="klBaru">' + ic('plus', 'sm') + 'Tambah Kelas</button>' : '') + '</div>' +
       '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Kelas</th><th>Tingkat</th><th>Wali Kelas</th><th>Ruang</th><th class="num">Siswa Aktif</th><th>Status</th><th class="right">Aksi</th></tr></thead><tbody id="klBody"><tr><td colspan="7"><div class="skel" style="height:160px"></div></td></tr></tbody></table></div></div>';
-    let D = null, guru = [];
+    // Keep the form usable while the class list request is still in flight.
+    // Previously the visible button was a silent no-op until this request
+    // completed, which made the whole section look broken on a slow backend.
+    let D = { rows: [], tingkat: [] }, guru = [];
     const render = function () {
       $('#klBody').innerHTML = D.rows.length ? D.rows.map(function (k) {
         return '<tr><td><b style="color:var(--ink)">' + esc(k.NamaKelas) + '</b></td><td><span class="tag">' + esc(k.Tingkat || '-') + '</span></td><td class="small">' + esc(k.NamaWali || '—') + '</td><td class="small">' + esc(k.Ruang || '—') + '</td><td class="num"><b>' + k.JumlahSiswa + '</b></td>' +
@@ -123,7 +126,7 @@
       if (admin) tugas.push(A.swr('user', function () { return A.apiQ('user.list', {}); }, { maxAge: 60000 }));
       Promise.all(tugas).then(function (x) { if (!$('#klBody')) return; D = x[0] || { rows: [], tingkat: [] }; guru = x[1] ? x[1].rows.filter(function (u) { return u.StatusAktif === 'YA'; }) : []; render(); });
     };
-    if ($('#klBaru')) $('#klBaru').onclick = function () { if (D) form(null); };
+    if ($('#klBaru')) $('#klBaru').onclick = function () { form(null); };
     muat();
   }
 

@@ -7,5 +7,5 @@
    semua rahasia disimpan di Script Properties pada proyek Apps Script.
    ============================================================================ */
 window.APP_CONFIG = {
-  GAS_URL: 'https://script.google.com/macros/s/AKfycby4oSpaiBjcBgKFOxaILJ8NGcin5wIlNdReCezJ9FBgcEyyaFD8xTOExJ_bC5S1TYk/exec'
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbypyuPZ2Kb0EQ0KLxTcuGX4DKk9ayFnvvxUsoJQrkaTurPufppR2HtWWMX7jC5MXxZT/exec'
 };

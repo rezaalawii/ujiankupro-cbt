@@ -513,25 +513,34 @@
       '<div class="row between wrap hidden" id="tkBulk" style="padding:10px 18px;background:var(--brand-50);border-top:1px solid var(--line)"><b class="small" id="tkN"></b><div class="row wrap">' +
       [['resetPerangkat', 'refresh', 'Reset login/perangkat'], ['ganti', 'key', 'Ganti PIN'], ['nonaktif', 'lock', 'Nonaktifkan'], ['aktifkan', 'checkc', 'Aktifkan'], ['hapus', 'trash', 'Hapus']].map(function (a) { return '<button class="btn sm ' + (a[0] === 'hapus' ? 'danger' : 'ghost') + '" data-aksi="' + a[0] + '">' + ic(a[1], 'sm') + a[2] + '</button>'; }).join('') + '</div></div>' +
       '<div class="tbl-wrap"><table class="tbl"><thead><tr><th style="width:34px"><input type="checkbox" id="tkAll"></th><th>Siswa</th><th>Kelas</th><th>PIN</th><th>Status</th><th>Perangkat</th><th>Dipakai</th><th class="right">Aksi</th></tr></thead><tbody id="tkBody"><tr><td colspan="8"><div class="skel" style="height:200px"></div></td></tr></tbody></table></div><div class="pager" id="tkPg"></div></div>';
-    const dp = await muatPaket();
+    let dp;
+    try { dp = await muatPaket(); } catch (e) {
+      if ($('#tkPaket')) { $('#tkPaket').innerHTML = '<option value="">Gagal memuat paket</option>'; $('#tkBody').innerHTML = A.tabelKosong(8, 'Gagal memuat daftar paket: ' + esc(e.message || e), 'warn'); $('#tkKpi').innerHTML = ''; }
+      return;
+    }
     if (!$('#tkPaket')) return;
-    const terbit = (dp ? dp.rows : []).filter(function (r) { return r.Status === 'Terbit'; });
+    const terbit = (dp && Array.isArray(dp.rows) ? dp.rows : []).filter(function (r) { return r.Status === 'Terbit'; });
     if (!terbit.length) { $('#tkPaket').innerHTML = '<option value="">Belum ada paket terbit</option>'; $('#tkBody').innerHTML = A.tabelKosong(8, 'Terbitkan paket ujian terlebih dahulu, lalu buat token di sini.', 'ticket'); $('#tkKpi').innerHTML = ''; return; }
     if (!T.paketId || !terbit.some(function (r) { return r.ID === T.paketId; })) T.paketId = (terbit.filter(function (r) { return r.StatusTampil !== 'Selesai'; })[0] || terbit[0]).ID;
     $('#tkPaket').innerHTML = terbit.map(function (r) { return '<option value="' + r.ID + '"' + (r.ID === T.paketId ? ' selected' : '') + '>' + esc(r.Nama) + ' (' + esc(r.Kode) + ') · ' + r.StatusTampil + '</option>'; }).join('');
     let D = null, hal = 1;
     const paket = function () { return terbit.filter(function (r) { return r.ID === T.paketId; })[0]; };
     const muat = async function (paksa) {
-      const r = await A.api('token.list', { paketId: T.paketId }, { quiet: !paksa });
+      let r;
+      try { r = await A.api('token.list', { paketId: T.paketId }, { quiet: !paksa }); } catch (e) {
+        if ($('#tkBody')) $('#tkBody').innerHTML = A.tabelKosong(8, 'Gagal memuat token: ' + esc(e.message || e), 'warn');
+        return;
+      }
       if (!$('#tkBody')) return;
       if (!r.success) { $('#tkBody').innerHTML = A.tabelKosong(8, r.message); return; }
       D = r.data; render();
     };
-    const tersaring = function () { const q = T.q.toLowerCase(); return D.rows.filter(function (r) { return (!T.kelas || r.Kelas === T.kelas) && (!T.status || r.Status === T.status) && (!q || (r.Nama + ' ' + r.NIS + ' ' + r.PIN).toLowerCase().indexOf(q) > -1); }); };
+    const tersaring = function () { const q = T.q.toLowerCase(); return (D && Array.isArray(D.rows) ? D.rows : []).filter(function (r) { return (!T.kelas || r.Kelas === T.kelas) && (!T.status || r.Status === T.status) && (!q || (r.Nama + ' ' + r.NIS + ' ' + r.PIN).toLowerCase().indexOf(q) > -1); }); };
     const render = function () {
-      const k = D.kpi;
+      const rows = Array.isArray(D.rows) ? D.rows : [];
+      const k = D.kpi || { total: rows.length, aktif: rows.filter(function (r) { return r.Status === 'Aktif'; }).length, terpakai: rows.filter(function (r) { return r.Status === 'Terpakai'; }).length, nonaktif: rows.filter(function (r) { return r.Status === 'Nonaktif'; }).length };
       $('#tkKpi').innerHTML = ADM.kpi('Total Token', k.total, esc(paket().KelasSasaran), 't-blue', 'ticket') + ADM.kpi('Aktif', k.aktif, 'Belum dipakai', 't-green', 'key') + ADM.kpi('Terpakai', k.terpakai, 'Sudah login/mengerjakan', 't-purple', 'checkc') + ADM.kpi('Nonaktif', k.nonaktif, 'Dicabut', 't-rose', 'lock');
-      const kelas = D.rows.map(function (r) { return r.Kelas; }).filter(function (x, i, a) { return x && a.indexOf(x) === i; }).sort();
+      const kelas = rows.map(function (r) { return r.Kelas; }).filter(function (x, i, a) { return x && a.indexOf(x) === i; }).sort();
       $('#tkKelas').innerHTML = '<option value="">Semua kelas</option>' + kelas.map(function (x) { return '<option' + (x === T.kelas ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('');
       tabel();
     };
@@ -543,7 +552,7 @@
           '<td><span class="badge dot ' + ({ Aktif: 'green', Terpakai: 'blue', Nonaktif: 'rose' }[r.Status] || '') + '">' + esc(r.Status) + '</span></td>' +
           '<td class="small">' + (r.Perangkat ? '<span style="color:var(--brand)">' + ic('laptop', 'sm') + ' Terikat</span>' : '<span class="muted">—</span>') + '</td><td class="tiny muted">' + (r.DipakaiPada ? F.tglJam(r.DipakaiPada) : '—') + '</td>' +
           '<td class="act"><button class="iconbtn" data-satu="cetak" data-id="' + r.ID + '" title="Cetak kartu">' + ic('print') + '</button><button class="iconbtn" data-satu="resetPerangkat" data-id="' + r.ID + '" title="Reset login/perangkat">' + ic('refresh') + '</button>' + (r.SesiID ? '' : '<button class="iconbtn" data-satu="ganti" data-id="' + r.ID + '" title="Ganti PIN">' + ic('key') + '</button>') + '</td></tr>';
-      }).join('') : A.tabelKosong(8, D.rows.length ? 'Tidak ada token pada filter ini.' : 'Belum ada token. Klik "Buat Token" untuk membuat token semua siswa kelas sasaran.', 'ticket');
+      }).join('') : A.tabelKosong(8, (D.rows || []).length ? 'Tidak ada token pada filter ini.' : 'Belum ada token. Klik "Buat Token" untuk membuat token semua siswa kelas sasaran.', 'ticket');
       A.pager($('#tkPg'), rows.length, hal, per, function (h) { hal = h; tabel(); });
       $$('[data-ck]', v).forEach(function (c) { c.onchange = function () { if (c.checked) T.pilih[c.dataset.ck] = 1; else delete T.pilih[c.dataset.ck]; c.closest('tr').classList.toggle('sel', c.checked); bulk(); }; });
       $$('[data-copy]', v).forEach(function (s) { s.onclick = function () { A.copy(s.dataset.copy); }; });

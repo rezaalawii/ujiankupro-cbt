@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Verifikasi Dokumen — UjianKu Pro</title>
+  <meta name="description" content="Cek keaslian dokumen yang diterbitkan sekolah melalui kode atau QR verifikasi.">
+  <meta name="theme-color" content="#13265C">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="css/app.css?v=1.0.0">
+  <style>
+    .vf-wrap { max-width: 640px; margin: 0 auto; padding: 0 16px 48px; position: relative; z-index: 2; }
+    .vf-hasil { margin-top: 18px; }
+    .vf-status { display: flex; gap: 14px; align-items: center; padding: 18px 20px; border-radius: 18px; color: #fff; }
+    .vf-status.sah { background: linear-gradient(135deg, #059669, #10b981); }
+    .vf-status.tarik { background: linear-gradient(135deg, #be123c, #e11d48); }
+    .vf-status.tidak { background: linear-gradient(135deg, #b45309, #f59e0b); }
+    .vf-status .ic { width: 34px; height: 34px; }
+    .vf-row { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--line-2); font-size: 13.5px; }
+    .vf-row span { color: var(--muted); } .vf-row b { color: var(--ink); text-align: right; }
+  </style>
+</head>
+<body>
+  <div class="login-bg">
+    <div class="login-top"><div class="brand"><div class="logo" data-brand="logo"></div><div><div class="nm"><span data-brand="nama">UjianKu</span><span class="pro">PRO</span></div><div class="sub" data-brand="lembaga">Verifikasi Dokumen</div></div></div><a class="pill-dark" href="index.html">Portal Siswa</a></div>
+    <div class="vf-wrap">
+      <div class="login-card" style="max-width:none;margin:0">
+        <div class="topline"></div>
+        <div class="in">
+          <div class="center"><span class="badge blue" style="height:32px;padding:0 14px;font-size:13px" id="vfBadge">Cek Keaslian Dokumen</span></div>
+          <h2 style="margin-top:14px">Verifikasi Dokumen</h2>
+          <p class="lead">Pindai QR pada dokumen, atau ketik kode verifikasi yang tercetak di bawah QR.</p>
+          <form id="vfForm" class="row" style="gap:8px">
+            <input class="inp grow mono" id="vfKode" placeholder="KODE VERIFIKASI" autocomplete="off" autocapitalize="characters" spellcheck="false" style="height:48px;text-transform:uppercase;letter-spacing:.06em">
+            <button class="btn grad" id="vfBtn" type="submit" style="height:48px">Cek</button>
+          </form>
+          <div id="vfHasil" class="vf-hasil"></div>
+        </div>
+        <div class="login-foot"><span>Data dibaca langsung dari server sekolah</span><span id="vfVer" class="mono"></span></div>
+      </div>
+      <p class="tiny center" style="color:#94a3b8;margin-top:18px">Halaman ini tidak meminta login dan tidak menyimpan data Anda.</p>
+    </div>
+  </div>
+  <script src="js/config.js?v=1.0.0"></script>
+  <script>
+  (function () {
+    'use strict';
+    var URL_GAS = String((window.APP_CONFIG || {}).GAS_URL || '').trim();
+    var OK = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(URL_GAS) && !/GANTI|XXXX/i.test(URL_GAS);
+    var $ = function (s) { return document.querySelector(s); };
+    var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+    var LOGO = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg>';
+    var IC = { ok: '<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>', x: '<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg>', warn: '<svg class="ic" viewBox="0 0 24 24"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>' };
+    document.querySelectorAll('[data-brand="logo"]').forEach(function (e) { e.innerHTML = LOGO; });
+    try { if (localStorage.getItem('uk_tema') === '"gelap"') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) { }
+    var tgl = function (v) { var d = new Date(v); if (isNaN(d)) return '-'; return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) + ', ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'; };
+    if (!OK) { $('#vfHasil').innerHTML = '<div class="alert amber">' + IC.warn + '<div>Halaman belum dikonfigurasi: isi <code>GAS_URL</code> di <code>js/config.js</code>.</div></div>'; return; }
+    // Branding sekolah (tidak wajib)
+    fetch(URL_GAS, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'pub.boot', data: {} }) }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.success) return; var s = j.data.setting || {};
+      document.querySelectorAll('[data-brand="nama"]').forEach(function (e) { e.textContent = s.NAMA_APLIKASI || 'UjianKu'; });
+      document.querySelectorAll('[data-brand="lembaga"]').forEach(function (e) { e.textContent = s.NAMA_LEMBAGA || 'Verifikasi Dokumen'; });
+      if (/^#[0-9a-f]{6}$/i.test(s.WARNA_UTAMA || '')) document.documentElement.style.setProperty('--brand', s.WARNA_UTAMA);
+      if (/^https:\/\//.test(s.LOGO_URL || '')) document.querySelectorAll('[data-brand="logo"]').forEach(function (e) { e.innerHTML = '<img src="' + esc(s.LOGO_URL) + '" alt="">'; });
+      $('#vfVer').textContent = 'v' + (j.data.versi || '');
+    }).catch(function () { });
+    var data = null;
+    var cek = function (kode) {
+      kode = String(kode || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
+      if (kode.length < 10) { $('#vfHasil').innerHTML = '<div class="alert amber">' + IC.warn + '<div>Kode verifikasi minimal 10 karakter.</div></div>'; return; }
+      $('#vfKode').value = kode; $('#vfBtn').disabled = true; $('#vfBtn').innerHTML = '<span class="spin"></span>';
+      $('#vfHasil').innerHTML = '<div class="skel" style="height:220px"></div>';
+      fetch(URL_GAS + '?action=de.cek&k=' + encodeURIComponent(kode), { credentials: 'omit' }).then(function (r) { return r.json(); }).then(function (j) {
+        $('#vfBtn').disabled = false; $('#vfBtn').textContent = 'Cek';
+        if (!j.success) { $('#vfHasil').innerHTML = '<div class="alert amber">' + IC.warn + '<div>' + esc(j.message) + '</div></div>'; return; }
+        data = j.data; tampil(kode);
+        try { history.replaceState(null, '', '?k=' + encodeURIComponent(kode)); } catch (e) { }
+      }).catch(function () { $('#vfBtn').disabled = false; $('#vfBtn').textContent = 'Cek'; $('#vfHasil').innerHTML = '<div class="alert rose">' + IC.warn + '<div>Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.</div></div>'; });
+    };
+    var tampil = function (kode) {
+      var d = data;
+      if (!d.ditemukan) { $('#vfHasil').innerHTML = '<div class="vf-status tidak">' + IC.x + '<div><b style="font-size:17px">Dokumen tidak ditemukan</b><div class="small" style="opacity:.9">Kode <span class="mono">' + esc(kode) + '</span> tidak terdaftar. Periksa kembali penulisan kode, atau dokumen ini bukan terbitan resmi.</div></div></div>'; return; }
+      var sah = d.status === 'SAH', tarik = d.status === 'DITARIK';
+      $('#vfHasil').innerHTML = '<div class="vf-status ' + (sah ? 'sah' : tarik ? 'tarik' : 'tidak') + '">' + (sah ? IC.ok : IC.warn) + '<div><b style="font-size:17px">' + (sah ? 'Dokumen SAH & terdaftar' : tarik ? 'Dokumen telah DITARIK' : 'Status: ' + esc(d.status)) + '</b><div class="small" style="opacity:.9">' + esc(d.instansi) + '</div></div></div>' +
+        (tarik && d.catatan ? '<div class="alert rose" style="margin-top:12px">' + IC.warn + '<div class="small">' + esc(d.catatan) + '</div></div>' : '') +
+        '<div style="margin-top:14px">' + [['Nomor', d.nomor], ['Perihal / Judul', d.judul], ['Jenis dokumen', d.jenis], ['Tanggal terbit', d.tanggal ? tgl(d.tanggal) : '-'], ['Kode verifikasi', kode]].map(function (x) { return '<div class="vf-row"><span>' + x[0] + '</span><b>' + esc(x[1] || '-') + '</b></div>'; }).join('') + '</div>' +
+        (d.penandatangan && d.penandatangan.length ? '<h3 style="font-size:14px;margin:18px 0 8px">' + (d.slot ? 'Penanda tangan (slot ' + d.slot + ')' : 'Penanda tangan') + '</h3><div class="stack-sm">' + d.penandatangan.map(function (p) { return '<div class="list-item"><div class="avatar sm">' + esc(String(p.nama || '?').replace(/[^A-Za-z ]/g, '').split(' ').filter(Boolean).slice(0, 2).map(function (x) { return x[0]; }).join('')) + '</div><div class="grow"><b class="small" style="color:var(--ink)">' + esc(p.nama) + '</b><div class="tiny muted">' + esc(p.jabatan) + ' · ' + esc(p.label || '') + '</div></div><div class="tiny muted" style="text-align:right">' + esc(p.metode || '') + '<br>' + (p.waktu ? tgl(p.waktu) : '') + '</div></div>'; }).join('') + '</div>' : '') +
+        (d.hashPdf ? '<div class="card soft" style="padding:14px;margin-top:16px"><b class="small" style="color:var(--ink)">Cocokkan berkas PDF (opsional)</b><p class="tiny muted" style="margin:4px 0 10px">Pilih PDF yang Anda terima — sidik jari SHA-256 dihitung di perangkat Anda (berkas tidak diunggah) lalu dicocokkan dengan arsip resmi.</p><input type="file" id="vfPdf" accept="application/pdf"><div id="vfHash" style="margin-top:10px"></div></div>' : '');
+      var f = document.getElementById('vfPdf');
+      if (f) f.onchange = function () {
+        var file = f.files[0]; if (!file) return;
+        if (!window.crypto || !crypto.subtle) { $('#vfHash').innerHTML = '<div class="alert amber"><div class="small">Peramban tidak mendukung perhitungan hash.</div></div>'; return; }
+        file.arrayBuffer().then(function (b) { return crypto.subtle.digest('SHA-256', b); }).then(function (h) {
+          var hex = Array.prototype.map.call(new Uint8Array(h), function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+          var sama = hex === String(d.hashPdf).toLowerCase();
+          $('#vfHash').innerHTML = '<div class="alert ' + (sama ? 'green' : 'rose') + '">' + (sama ? IC.ok : IC.warn) + '<div class="small"><b>' + (sama ? 'Berkas identik dengan arsip resmi.' : 'Berkas BERBEDA dari arsip resmi — mungkin telah diubah, dicetak ulang, atau bukan berkas asli.') + '</b><div class="mono tiny" style="word-break:break-all;margin-top:4px">' + hex + '</div></div></div>';
+        });
+      };
+    };
+    $('#vfForm').onsubmit = function (e) { e.preventDefault(); cek($('#vfKode').value); };
+    var awal = new URLSearchParams(location.search).get('k') || (location.hash.match(/k=([\w-]+)/) || [])[1];
+    if (awal) cek(awal); else $('#vfKode').focus();
+  })();
+  </script>
+</body>
+</html>

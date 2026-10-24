@@ -374,7 +374,30 @@ function resetUser_(id) {
   PropertiesService.getScriptProperties().setProperty('USER_REV_'+u.ID,String(Date.now()));return ok_({username:u.Username,sandiBaru:pw});
 }
 function publicUser_(u) { return {ID:u.ID,Nama:u.Nama,Username:u.Username,Peran:u.Role,Role:u.Role,Mapel:String(u.Mapel||''),Kelas:String(u.KelasDiampu||''),KelasDiampu:String(u.KelasDiampu||''),Email:u.Email||'',NoWA:u.NoWA||'',NIP:u.NIP||'',Aktif:u.Aktif,StatusAktif:u.Aktif,WajibGanti:u.WajibGanti}; }
-function questionList_(session) { const rows=rows_('Soal').filter(function(q){return session.me.role==='ADMIN'||q.Pemilik===session.me.id;}).map(function(q){q.Dipakai=0;return q;});return ok_({rows:rows,total:rows.length}); }
+function questionList_(session) {
+  const all=rows_('Soal').filter(function(q){return session.me.role==='ADMIN'||q.Pemilik===session.me.id;});
+  const used={}, packageRows=rows_('Paket'), userNames={};
+  packageRows.forEach(function(p){csv_(p.SoalIDs).forEach(function(id){used[id]=(used[id]||0)+1;});});
+  rows_('Users').forEach(function(u){userNames[u.ID]=u.Nama||u.Username||'';});
+  const facet={mapel:{},bloom:{},kesukaran:{},bulanIni:0,media:0},tingkat={},now=new Date();
+  const rows=all.map(function(q){
+    const dibuat=q.Diperbarui||q.Dibuat||'';
+    q.Dipakai=used[q.ID]||0;
+    q.NamaPembuat=userNames[q.Pemilik]||'';
+    q.DiperbaruiPada=dibuat;
+    const mapel=String(q.Mapel||'').trim(),bloom=String(q.Bloom||'').trim(),kes=String(q.Kesukaran||'').trim(),tk=String(q.Tingkat||'').trim();
+    if(mapel)facet.mapel[mapel]=(facet.mapel[mapel]||0)+1;
+    if(bloom)facet.bloom[bloom]=(facet.bloom[bloom]||0)+1;
+    if(kes)facet.kesukaran[kes]=(facet.kesukaran[kes]||0)+1;
+    if(tk)tingkat[tk]=true;
+    if(q.URLGambar)facet.media++;
+    const date=buatDate_(q.Dibuat);
+    if(date&&date.getFullYear()===now.getFullYear()&&date.getMonth()===now.getMonth())facet.bulanIni++;
+    return q;
+  });
+  return ok_({rows:rows,total:rows.length,facet:facet,tingkat:Object.keys(tingkat).sort()});
+}
+function buatDate_(value) { const date=value?new Date(value):null;return date&&!isNaN(date.getTime())?date:null; }
 function saveQuestion_(session,x) { requireRole_(session,['ADMIN','GURU']);if(!String(x.Pertanyaan||'').trim())return fail_('VALIDATION','Teks soal wajib diisi.');const prior=x.ID?byId_('Soal',x.ID):null;if(prior&&session.me.role!=='ADMIN'&&prior.Pemilik!==session.me.id)return fail_('AUTH','Tidak berhak mengubah soal ini.');const q=Object.assign({},prior||{},x,{ID:x.ID||uid_(),Pemilik:session.me.role==='ADMIN'?(x.Pemilik||prior&&prior.Pemilik||session.me.id):session.me.id,Status:x.Status||'Aktif',Bobot:Number(x.Bobot)||1,Dibuat:prior&&prior.Dibuat||x.Dibuat||iso_()});upsert_('Soal',q,'ID');return ok_({id:q.ID}); }
 function deleteQuestions_(session,ids) { ids.forEach(function(id){const q=byId_('Soal',id);if(q&&(session.me.role==='ADMIN'||q.Pemilik===session.me.id)){q.Status='Arsip';upsert_('Soal',q,'ID');}});return ok_({}); }
 function packageList_(session) {

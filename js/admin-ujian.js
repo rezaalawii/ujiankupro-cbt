@@ -81,12 +81,15 @@
     const render = function (d) {
       if (!$('#bsBody')) return;
       S.data = d;
-      const f = d.facet, dipakai = d.rows.filter(function (r) { return r.Dipakai > 0; }).length, hots = (f.bloom.C4 || 0) + (f.bloom.C5 || 0) + (f.bloom.C6 || 0);
+      // Older cached responses may only contain {rows,total}. Keep rendering
+      // those rows while the refreshed backend response includes the facets.
+      const f = d.facet || { mapel: {}, bloom: {}, kesukaran: {}, bulanIni: 0, media: 0 };
+      const dipakai = d.rows.filter(function (r) { return r.Dipakai > 0; }).length, hots = (f.bloom.C4 || 0) + (f.bloom.C5 || 0) + (f.bloom.C6 || 0);
       $('#bsKpi').innerHTML = ADM.kpi('Total Butir', d.total, Object.keys(f.mapel).length + ' mata pelajaran', 't-blue', 'book') + ADM.kpi('Ditambah Bulan Ini', f.bulanIni, 'Soal baru', 't-green', 'plus') +
         ADM.kpi('Soal HOTS (C4–C6)', hots, d.total ? Math.round(hots / d.total * 100) + '% dari bank' : '-', 't-purple', 'spark') + ADM.kpi('Dipakai di Paket', dipakai, (f.media || 0) + ' soal bergambar', 't-amber', 'layers');
       const opsi = function (list, val, semua) { return '<option value="">' + semua + '</option>' + list.map(function (x) { return '<option' + (x === val ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join(''); };
       $('#bsMapel').innerHTML = opsi(Object.keys(f.mapel).sort(), S.mapel, 'Semua mapel');
-      $('#bsTingkat').innerHTML = opsi(d.tingkat, S.tingkat, 'Semua tingkat');
+      $('#bsTingkat').innerHTML = opsi(d.tingkat || [], S.tingkat, 'Semua tingkat');
       $('#bsTipe').value = S.tipe; $('#bsStatus').value = S.status;
       $('#bsBloom').innerHTML = '<button class="chip ' + (!S.bloom ? 'on' : '') + '" data-b="">Semua level</button>' + Object.keys(BLOOM).map(function (b) { return '<button class="chip ' + (S.bloom === b ? 'on' : '') + '" data-b="' + b + '">' + b + ' ' + BLOOM[b] + ' <span class="pill-n">' + (f.bloom[b] || 0) + '</span></button>'; }).join('') +
         '<span style="width:1px;background:var(--line);margin:0 4px"></span>' + ['Mudah', 'Sedang', 'Sukar'].map(function (k) { return '<button class="chip ' + (S.kes === k ? 'on' : '') + '" data-k="' + k + '">' + k + ' <span class="pill-n">' + (f.kesukaran[k] || 0) + '</span></button>'; }).join('');
